@@ -8,4 +8,6 @@ urlpatterns = [
     path("api/search/", views.search_api, name="search_api"),
     path("api/holdings/", views.holdings_api, name="holdings_api"),
     path("api/holdings/<int:pk>/", views.holding_detail_api, name="holding_detail_api"),
+    path("api/import/", views.import_api, name="import_api"),
+    path("api/history/", views.history_api, name="history_api"),
 ]

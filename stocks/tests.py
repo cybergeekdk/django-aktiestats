@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -75,3 +76,75 @@ class StockTests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.post(reverse("holdings_api"), {"symbol": "A", "quantity": "-1"}, content_type="application/json")
         self.assertEqual(resp.status_code, 400)
+
+
+import pandas as pd  # noqa: E402
+
+from . import importer, portfolio  # noqa: E402
+from .models import Instrument, Transaction  # noqa: E402
+
+HEADER = ("Id\tBogføringsdag\tHandelsdag\tValørdag\tDepot\tTransaktionstype\tVærdipapirer\tISIN\tAntal\t"
+          "Kurs\tRente\tSamlede afgifter\tValuta\tBeløb\tValuta\tVekslingskurs")
+
+
+def make_csv(rows):
+    lines = [HEADER] + [
+        f"{i}\t\t{d}\t\t1\t{t}\tVestas\tDK0061539921\t{q}\t{k}\t\t25\tDKK\t{b}\tDKK\t"
+        for i, d, t, q, k, b in rows
+    ]
+    return "\r\n".join(lines).encode("utf-16")
+
+
+@patch("stocks.importer.yf.Search", FakeSearch)
+class ImportTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("anna", password="pw")
+
+    def test_parse_danish_numbers_and_ignores_other_types(self):
+        raw = make_csv([(1, "2026-01-05", "KØBT", "10", "9,50", "-120,5"),
+                        (2, "2026-01-06", "UDBYTTE", "10", "1", "5")])
+        trades = importer.parse_csv(raw)
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(str(trades[0]["price"]), "9.50")
+        self.assertEqual(str(trades[0]["amount_dkk"]), "-120.5")
+
+    def test_import_creates_holding_and_is_idempotent(self):
+        raw = make_csv([(1, "2026-01-05", "KØBT", "10", "100", "-1025"),
+                        (2, "2026-02-05", "KØBT", "10", "120", "-1225"),
+                        (3, "2026-03-05", "SOLGT", "5", "130", "625")])
+        first = importer.import_csv(self.user, raw)
+        self.assertEqual(first["imported"], 3)
+        h = self.user.holdings.get()
+        self.assertEqual(h.symbol, "VWS.CO")
+        self.assertEqual(float(h.quantity), 15.0)
+        self.assertEqual(float(h.purchase_price), 110.0)  # snit uændret af salg
+        second = importer.import_csv(self.user, raw)
+        self.assertEqual((second["imported"], second["duplicates"]), (0, 3))
+        self.assertEqual(Transaction.objects.count(), 3)
+
+    def test_rejects_wrong_file(self):
+        with self.assertRaises(importer.ImportError_):
+            importer.parse_csv(b"a,b,c\n1,2,3")
+
+    def test_import_endpoint(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.force_login(self.user)
+        f = SimpleUploadedFile("x.csv", make_csv([(1, "2026-01-05", "KØBT", "1", "10", "-35")]))
+        resp = self.client.post(reverse("import_api"), {"file": f})
+        self.assertEqual(resp.json()["imported"], 1)
+
+
+class HistoryTests(TestCase):
+    def test_value_follows_quantity_over_time(self):
+        user = get_user_model().objects.create_user("anna", password="pw")
+        Instrument.objects.create(isin="DK0061539921", symbol="VWS.CO")
+        d0 = date.today() - timedelta(days=14)
+        Transaction.objects.create(user=user, nordnet_id="1", trade_date=d0, side="buy",
+                                   isin="DK0061539921", quantity=10, price=100, amount_dkk=-1025)
+        days = pd.bdate_range(d0 - timedelta(days=5), date.today())
+        close = pd.Series(100.0, index=days)
+        with patch("stocks.portfolio._fetch_close", return_value=(close, "DKK")):
+            h = portfolio.build_history(user, "max")
+        self.assertEqual(h["value"][0], 0.0 if pd.Timestamp(h["dates"][0]) < pd.Timestamp(d0) else 1000.0)
+        self.assertEqual(h["value"][-1], 1000.0)
+        self.assertEqual(h["invested"][-1], 1025.0)

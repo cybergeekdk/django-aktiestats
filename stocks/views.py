@@ -2,11 +2,14 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
+from .importer import ImportError_, import_csv
 from .models import Holding
+from .portfolio import RANGES, build_history
 from .services import QuoteError, get_quote, get_quotes, search_symbols
 
 
@@ -98,3 +101,31 @@ def holdings_api(request):
 def holding_detail_api(request, pk):
     get_object_or_404(Holding, pk=pk, user=request.user).delete()
     return JsonResponse({"ok": True})
+
+
+@_api_login_required
+@require_http_methods(["POST"])
+def import_api(request):
+    upload = request.FILES.get("file")
+    if not upload:
+        return JsonResponse({"error": "Ingen fil valgt"}, status=400)
+    if upload.size > 5 * 1024 * 1024:
+        return JsonResponse({"error": "Filen er for stor"}, status=400)
+    try:
+        summary = import_csv(request.user, upload.read())
+    except ImportError_ as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse(summary)
+
+
+@_api_login_required
+def history_api(request):
+    range_key = request.GET.get("range", "1y")
+    if range_key not in RANGES:
+        return JsonResponse({"error": "Ugyldigt interval"}, status=400)
+    key = f"history:{request.user.pk}:{range_key}"
+    data = cache.get(key)
+    if data is None:
+        data = build_history(request.user, range_key)
+        cache.set(key, data, 300)
+    return JsonResponse(data)

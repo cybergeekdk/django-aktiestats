@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Min portefølje</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
     header { display: flex; justify-content: space-between; align-items: center; }
@@ -19,6 +20,9 @@
     th:first-child, td:first-child { text-align: left; }
     .up { color: #0a8f3c; } .down { color: #d1242f; }
     small, .muted { color: #888; }
+    .toolbar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
+    .toolbar button.active { font-weight: bold; text-decoration: underline; }
+    #chart-wrap { position: relative; height: 320px; }
     button.del { border: 0; background: none; cursor: pointer; color: #d1242f; font-size: 1.1rem; }
   </style>
 </head>
@@ -41,6 +45,20 @@
     <input id="price" type="number" step="any" min="0" placeholder="Købskurs (valgfri)">
     <button>Gem i portefølje</button>
   </form>
+
+  <div class="toolbar">
+    <strong>Udvikling (DKK)</strong>
+    <span id="ranges"></span>
+    <span class="muted" id="chart-msg"></span>
+  </div>
+  <div id="chart-wrap"><canvas id="chart"></canvas></div>
+
+  <div class="toolbar">
+    <strong>Importér fra Nordnet:</strong>
+    <input type="file" id="csv" accept=".csv,.txt">
+    <button id="import-btn">Importér</button>
+    <span id="import-msg" class="muted"></span>
+  </div>
 
   <table>
     <thead><tr><th>Aktie</th><th>Antal</th><th>Kurs</th><th>Dag %</th><th>Værdi</th><th>Gevinst/tab</th><th></th></tr></thead>
@@ -134,7 +152,48 @@
       render(data.holdings);
     });
 
-    refresh(); setInterval(refresh, 15000);
+    // Graf
+    let chart, range = "1y";
+    const rangeLabels = {"1m": "1 md", "3m": "3 mdr", "6m": "6 mdr", "1y": "1 år", "max": "Max"};
+    for (const [key, label] of Object.entries(rangeLabels)) {
+      const b = document.createElement("button");
+      b.textContent = label; b.dataset.key = key;
+      b.onclick = () => { range = key; loadChart(); };
+      $("ranges").append(b);
+    }
+    async function loadChart() {
+      for (const b of $("ranges").children) b.classList.toggle("active", b.dataset.key === range);
+      $("chart-msg").textContent = "Henter…";
+      const d = await api("{% url 'history_api' %}?range=" + range);
+      if (!d) return;
+      $("chart-msg").textContent = d.dates.length ? "" : "Ingen data endnu – importér eller tilføj aktier.";
+      const datasets = [{label: "Værdi", data: d.value, borderColor: "#2563eb", pointRadius: 0, tension: .1}];
+      if (d.invested.length) datasets.push({label: "Netto indskudt", data: d.invested, borderColor: "#888", borderDash: [5, 5], pointRadius: 0, stepped: true});
+      chart?.destroy();
+      chart = new Chart($("chart"), {
+        type: "line", data: {labels: d.dates, datasets},
+        options: {maintainAspectRatio: false, interaction: {mode: "index", intersect: false},
+          scales: {y: {ticks: {callback: v => fmt(v, 0)}}, x: {ticks: {maxTicksLimit: 8}}},
+          plugins: {tooltip: {callbacks: {label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} kr.`}}}},
+      });
+    }
+
+    // Import
+    $("import-btn").onclick = async () => {
+      const file = $("csv").files[0];
+      if (!file) { $("import-msg").textContent = "Vælg en CSV-fil først."; return; }
+      $("import-msg").textContent = "Importerer… (kan tage et øjeblik)";
+      const form = new FormData(); form.append("file", file);
+      const res = await fetch("{% url 'import_api' %}", {method: "POST", body: form, headers: {"X-CSRFToken": csrf}, credentials: "same-origin"});
+      const d = await res.json();
+      if (d.error) { $("import-msg").textContent = d.error; return; }
+      let msg = `${d.imported} nye handler importeret, ${d.duplicates} allerede kendt.`;
+      if (d.unresolved.length) msg += ` Ticker ikke fundet for: ${d.unresolved.join(", ")} – ret under Admin → Værdipapirer.`;
+      $("import-msg").textContent = msg;
+      refresh(); loadChart();
+    };
+
+    refresh(); loadChart(); setInterval(refresh, 15000);
   </script>
 </body>
 </html>

@@ -16,6 +16,19 @@ Log ind på http://127.0.0.1:8000/ – siden opdaterer kurserne via AJAX hvert 1
 Søg en aktie frem, angiv antal (og evt. købskurs fra Nordnet), og den gemmes på din bruger.
 Beholdninger kan også ses/redigeres i Django admin på `/admin/` (model "Beholdninger"). Opret flere brugere i admin for at give andre deres egen portefølje.
 
+## Import fra Nordnet
+
+Eksportér transaktioner som CSV fra Nordnet og upload filen på forsiden ("Importér fra Nordnet").
+Køb og salg læses (øvrige typer som udbytte ignoreres), ISIN slås op til Yahoo-ticker, og beholdninger
+beregnes med gennemsnitlig anskaffelseskurs. Importen er idempotent – samme fil kan uploades igen.
+Passer en ticker ikke, rettes den under Admin → Værdipapirer, og filen importeres igen.
+
+## Graf
+
+Grafen viser porteføljens værdi i DKK over tid (dagsslutkurser omregnet med valutakurser) mod netto indskudt.
+Historikken beregnes ud fra importerede handler; manuelt tilføjede aktier regnes med konstant antal.
+Chart.js indlæses fra cdnjs.
+
 ## API
 
 Kræver login (session):
@@ -25,6 +38,8 @@ Kræver login (session):
 - `GET /api/holdings/` – din portefølje med live kurs, værdi og gevinst/tab
 - `POST /api/holdings/` – tilføj/opdatér `{symbol, name, quantity, purchase_price}`
 - `DELETE /api/holdings/<id>/` – fjern en beholdning
+- `POST /api/import/` – upload Nordnet-CSV (multipart, felt `file`)
+- `GET /api/history/?range=1m|3m|6m|1y|max` – porteføljeværdi pr. dag
 
 Nordnet har intet offentligt API, så beholdninger indtastes manuelt. Danske aktier har suffikset `.CO` (fx `VWS.CO`). Kurser caches i 15 sek. (`QUOTE_CACHE_SECONDS`).
 
