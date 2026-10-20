@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aktiestatistik</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+    form { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    input { flex: 1; padding: .5rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: right; padding: .5rem; border-bottom: 1px solid #8884; }
+    th:first-child, td:first-child { text-align: left; }
+    .up { color: #0a8f3c; } .down { color: #d1242f; }
+    small { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Live aktiestatistik</h1>
+  <form id="add"><input id="sym" placeholder="Tilføj symbol, fx TSLA eller VWS.CO"><button>Tilføj</button></form>
+  <table>
+    <thead><tr><th>Symbol</th><th>Kurs</th><th>Ændring</th><th>%</th><th>Dag høj/lav</th><th>Volumen</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <small id="updated"></small>
+  {{ symbols|json_script:"symbols-data" }}
+  <script>
+    const symbols = JSON.parse(document.getElementById("symbols-data").textContent);
+    const fmt = (n, d = 2) => n == null ? "–" : n.toLocaleString("da-DK", {minimumFractionDigits: d, maximumFractionDigits: d});
+    async function refresh() {
+      const res = await fetch("{% url 'quotes_api' %}?symbols=" + encodeURIComponent(symbols.join(",")));
+      const data = await res.json();
+      const rows = document.getElementById("rows");
+      rows.replaceChildren();
+      for (const [sym, q] of Object.entries(data)) {
+        const tr = document.createElement("tr");
+        if (q.error) { tr.innerHTML = `<td></td><td colspan="5"></td>`; tr.children[0].textContent = sym; tr.children[1].textContent = q.error; }
+        else {
+          const cls = q.change >= 0 ? "up" : "down";
+          const cells = [sym, `${fmt(q.price)} ${q.currency}`, fmt(q.change), fmt(q.change_percent) + " %", `${fmt(q.day_high)} / ${fmt(q.day_low)}`, fmt(q.volume, 0)];
+          cells.forEach((t, i) => { const td = document.createElement("td"); td.textContent = t; if (i === 2 || i === 3) td.className = cls; tr.append(td); });
+        }
+        rows.append(tr);
+      }
+      document.getElementById("updated").textContent = "Opdateret " + new Date().toLocaleTimeString("da-DK");
+    }
+    document.getElementById("add").addEventListener("submit", e => {
+      e.preventDefault();
+      const s = document.getElementById("sym").value.trim().toUpperCase();
+      if (s && !symbols.includes(s)) { symbols.push(s); refresh(); }
+      e.target.reset();
+    });
+    refresh(); setInterval(refresh, 15000);
+  </script>
+</body>
+</html>
