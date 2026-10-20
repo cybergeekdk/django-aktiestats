@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Aktiestat{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <script>
+    // Følg systemets lyse/mørke tema
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => document.documentElement.setAttribute("data-bs-theme", mq.matches ? "dark" : "light");
+    applyTheme(); mq.addEventListener("change", applyTheme);
+  </script>
+  <style>
+    .up { color: var(--bs-success); } .down { color: var(--bs-danger); }
+    #results { position: absolute; left: 0; right: 0; z-index: 1050; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {# Menupunkter: tilføj nye sider her (url_name, label). Aktiv markeres automatisk. #}
+  <nav class="navbar navbar-expand-md bg-body-tertiary border-bottom mb-4">
+    <div class="container">
+      <a class="navbar-brand fw-semibold" href="{% url 'index' %}">📈 Aktiestat</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="nav">
+        {% if user.is_authenticated %}
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'index' %}">Portefølje</a>
+          </li>
+          {% block nav_items %}{% endblock %}
+        </ul>
+        <ul class="navbar-nav">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name == 'profile' %}active{% endif %}" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+              {{ user.get_short_name|default:user.username }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="{% url 'profile' %}">Min profil</a></li>
+              {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}">Admin</a></li>{% endif %}
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+                  <button class="dropdown-item">Log ud</button>
+                </form>
+              </li>
+            </ul>
+          </li>
+        </ul>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <main class="container pb-5">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Luk"></button>
+      </div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Min profil{% endblock %}
+{% block content %}
+<h1 class="h3 mb-4">Min profil</h1>
+<div class="row g-4">
+  <div class="col-md-7">
+    <form method="post" class="card card-body">{% csrf_token %}
+      <h2 class="h6">Oplysninger</h2>
+      <div class="mb-3"><label class="form-label">Brugernavn</label>
+        <input class="form-control" value="{{ user.username }}" disabled></div>
+      {% for field in form %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+      <div><button class="btn btn-primary">Gem</button>
+        <a class="btn btn-outline-secondary" href="{% url 'password_change' %}">Skift adgangskode</a></div>
+    </form>
+  </div>
+  <div class="col-md-5">
+    <div class="card card-body">
+      <h2 class="h6">Din konto</h2>
+      <dl class="row mb-0">
+        <dt class="col-7">Aktier i portefølje</dt><dd class="col-5 text-end">{{ holding_count }}</dd>
+        <dt class="col-7">Importerede handler</dt><dd class="col-5 text-end">{{ transaction_count }}</dd>
+        <dt class="col-5">Oprettet</dt><dd class="col-7 text-end">{{ user.date_joined|date:"j. F Y" }}</dd>
+        <dt class="col-5">Sidst logget ind</dt><dd class="col-7 text-end">{{ user.last_login|date:"j. F Y H:i"|default:"–" }}</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+<script>document.querySelectorAll("form input:not([disabled])").forEach(i => i.classList.add("form-control"));</script>
+{% endblock %}

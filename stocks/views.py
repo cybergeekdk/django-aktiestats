@@ -2,11 +2,13 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.core.cache import cache
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
+from .forms import ProfileForm
 from .importer import ImportError_, import_csv
 from .models import Holding
 from .portfolio import RANGES, build_history
@@ -27,6 +29,20 @@ def _api_login_required(view):
 @login_required
 def index(request):
     return render(request, "stocks/index.html")
+
+
+@login_required
+def profile(request):
+    form = ProfileForm(request.POST or None, instance=request.user)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Profilen er gemt.")
+        return redirect("profile")
+    return render(request, "stocks/profile.html", {
+        "form": form,
+        "holding_count": request.user.holdings.count(),
+        "transaction_count": request.user.transactions.count(),
+    })
 
 
 @_api_login_required

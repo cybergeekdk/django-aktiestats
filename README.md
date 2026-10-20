@@ -16,6 +16,12 @@ Log ind på http://127.0.0.1:8000/ – siden opdaterer kurserne via AJAX hvert 1
 Søg en aktie frem, angiv antal (og evt. købskurs fra Nordnet), og den gemmes på din bruger.
 Beholdninger kan også ses/redigeres i Django admin på `/admin/` (model "Beholdninger"). Opret flere brugere i admin for at give andre deres egen portefølje.
 
+## Menu og profil
+
+Siden bruger Bootstrap 5 (CDN) med en fælles skabelon, `stocks/templates/base.html`. Nye menupunkter tilføjes i blokken
+`nav_items` (eller direkte i navbaren); det aktive punkt markeres via `request.resolver_match.url_name`.
+Profilsiden (`/profile/`) lader brugeren rette navn og e-mail og skifte adgangskode. Temaet følger systemets lyse/mørke indstilling.
+
 ## Import fra Nordnet
 
 Eksportér transaktioner som CSV fra Nordnet og upload filen på forsiden ("Importér fra Nordnet").

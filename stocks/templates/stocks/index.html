@@ -1,72 +1,54 @@
-<!doctype html>
-<html lang="da">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Min portefølje</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
-    header { display: flex; justify-content: space-between; align-items: center; }
-    header form { display: inline; }
-    #search-wrap { position: relative; margin: 1rem 0; }
-    #q { width: 100%; padding: .6rem; box-sizing: border-box; }
-    #results { position: absolute; left: 0; right: 0; background: Canvas; border: 1px solid #8886; z-index: 5; margin: 0; padding: 0; list-style: none; }
-    #results li { padding: .5rem; cursor: pointer; } #results li:hover { background: #8882; }
-    #add-form { display: none; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-    #add-form input { padding: .4rem; width: 9rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: right; padding: .5rem; border-bottom: 1px solid #8884; }
-    th:first-child, td:first-child { text-align: left; }
-    .up { color: #0a8f3c; } .down { color: #d1242f; }
-    small, .muted { color: #888; }
-    .toolbar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
-    .toolbar button.active { font-weight: bold; text-decoration: underline; }
-    #chart-wrap { position: relative; height: 320px; }
-    button.del { border: 0; background: none; cursor: pointer; color: #d1242f; font-size: 1.1rem; }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Min portefølje</h1>
-    <span>{{ user.username }}
-      {% if user.is_staff %}· <a href="{% url 'admin:index' %}">Admin</a>{% endif %}
-      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button>Log ud</button></form>
-    </span>
-  </header>
+{% extends "base.html" %}
+{% block title %}Min portefølje{% endblock %}
+{% block head %}<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>{% endblock %}
 
-  <div id="search-wrap">
-    <input id="q" placeholder="Søg aktie (fx Vestas, Novo, Apple)…" autocomplete="off">
-    <ul id="results" hidden></ul>
+{% block content %}
+<h1 class="h3 mb-3">Min portefølje</h1>
+
+<div class="position-relative mb-3">
+  <input id="q" class="form-control" placeholder="Søg aktie (fx Vestas, Novo, Apple)…" autocomplete="off">
+  <ul id="results" class="list-group shadow" hidden></ul>
+</div>
+<form id="add-form" class="d-none row g-2 align-items-center mb-4">
+  <div class="col-auto fw-semibold" id="picked"></div>
+  <div class="col-auto"><input id="qty" class="form-control" type="number" step="any" min="0" placeholder="Antal" required></div>
+  <div class="col-auto"><input id="price" class="form-control" type="number" step="any" min="0" placeholder="Købskurs (valgfri)"></div>
+  <div class="col-auto"><button class="btn btn-primary">Gem i portefølje</button></div>
+</form>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h2 class="h6 mb-0">Udvikling (DKK)</h2>
+      <div class="btn-group" id="ranges"></div>
+    </div>
+    <div class="text-body-secondary small" id="chart-msg"></div>
+    <div style="position: relative; height: 320px;"><canvas id="chart"></canvas></div>
   </div>
-  <form id="add-form">
-    <strong id="picked"></strong>
-    <input id="qty" type="number" step="any" min="0" placeholder="Antal" required>
-    <input id="price" type="number" step="any" min="0" placeholder="Købskurs (valgfri)">
-    <button>Gem i portefølje</button>
-  </form>
+</div>
 
-  <div class="toolbar">
-    <strong>Udvikling (DKK)</strong>
-    <span id="ranges"></span>
-    <span class="muted" id="chart-msg"></span>
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="h6">Importér fra Nordnet</h2>
+    <div class="row g-2 align-items-center">
+      <div class="col-sm"><input type="file" id="csv" class="form-control" accept=".csv,.txt"></div>
+      <div class="col-sm-auto"><button id="import-btn" class="btn btn-outline-primary">Importér</button></div>
+    </div>
+    <div id="import-msg" class="text-body-secondary small mt-2"></div>
   </div>
-  <div id="chart-wrap"><canvas id="chart"></canvas></div>
+</div>
 
-  <div class="toolbar">
-    <strong>Importér fra Nordnet:</strong>
-    <input type="file" id="csv" accept=".csv,.txt">
-    <button id="import-btn">Importér</button>
-    <span id="import-msg" class="muted"></span>
-  </div>
-
-  <table>
-    <thead><tr><th>Aktie</th><th>Antal</th><th>Kurs</th><th>Dag %</th><th>Værdi</th><th>Gevinst/tab</th><th></th></tr></thead>
+<div class="table-responsive">
+  <table class="table table-hover align-middle text-end">
+    <thead><tr><th class="text-start">Aktie</th><th>Antal</th><th>Kurs</th><th>Dag %</th><th>Værdi</th><th>Gevinst/tab</th><th></th></tr></thead>
     <tbody id="rows"></tbody>
   </table>
-  <p><small id="updated"></small></p>
+</div>
+<p><small class="text-body-secondary" id="updated"></small></p>
+{% endblock %}
 
-  <script>
+{% block scripts %}
+<script>
     const csrf = document.cookie.split("; ").find(c => c.startsWith("csrftoken="))?.split("=")[1]
       || "{{ csrf_token }}";
     const $ = id => document.getElementById(id);
@@ -94,8 +76,8 @@
       rows.replaceChildren();
       for (const h of holdings) {
         const q = h.quote || {}, tr = document.createElement("tr");
-        const name = td(h.symbol); 
-        const sub = document.createElement("div"); sub.className = "muted"; sub.textContent = h.name;
+        const name = td(h.symbol, "text-start");
+        const sub = document.createElement("div"); sub.className = "text-body-secondary small"; sub.textContent = h.name;
         name.append(sub);
         const dayCls = q.change >= 0 ? "up" : "down", plCls = h.profit >= 0 ? "up" : "down";
         tr.append(
@@ -107,7 +89,7 @@
           td(h.profit == null ? "–" : `${fmt(h.profit)} (${fmt(h.profit_percent)} %)`, plCls),
         );
         const cell = document.createElement("td"), btn = document.createElement("button");
-        btn.className = "del"; btn.title = "Fjern"; btn.textContent = "×";
+        btn.className = "btn btn-sm btn-outline-danger"; btn.title = "Fjern"; btn.textContent = "×";
         btn.onclick = async () => { await api(`/api/holdings/${h.id}/`, {method: "DELETE"}); refresh(); };
         cell.append(btn); tr.append(cell); rows.append(tr);
       }
@@ -134,7 +116,7 @@
           li.onclick = () => {
             picked = r; ul.hidden = true; $("q").value = "";
             $("picked").textContent = `${r.symbol} – ${r.name}`;
-            $("add-form").style.display = "flex"; $("qty").focus();
+            $("add-form").classList.remove("d-none"); $("qty").focus();
           };
           ul.append(li);
         }
@@ -148,7 +130,7 @@
         symbol: picked.symbol, name: picked.name, quantity: $("qty").value, purchase_price: $("price").value,
       })});
       if (data?.error) { alert(data.error); return; }
-      e.target.reset(); e.target.style.display = "none"; picked = null;
+      e.target.reset(); e.target.classList.add("d-none"); picked = null;
       render(data.holdings);
     });
 
@@ -157,7 +139,7 @@
     const rangeLabels = {"1m": "1 md", "3m": "3 mdr", "6m": "6 mdr", "1y": "1 år", "max": "Max"};
     for (const [key, label] of Object.entries(rangeLabels)) {
       const b = document.createElement("button");
-      b.textContent = label; b.dataset.key = key;
+      b.textContent = label; b.dataset.key = key; b.className = "btn btn-sm btn-outline-secondary";
       b.onclick = () => { range = key; loadChart(); };
       $("ranges").append(b);
     }
@@ -195,5 +177,4 @@
 
     refresh(); loadChart(); setInterval(refresh, 15000);
   </script>
-</body>
-</html>
+{% endblock %}

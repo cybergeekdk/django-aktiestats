@@ -133,3 +133,7 @@ QUOTE_CACHE_SECONDS = 15
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'index'
 LOGOUT_REDIRECT_URL = 'login'
+
+# Bootstrap-klasser til Djangos beskeder
+from django.contrib.messages import constants as _m  # noqa: E402
+MESSAGE_TAGS = {_m.ERROR: "danger"}

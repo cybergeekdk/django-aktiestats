@@ -148,3 +148,25 @@ class HistoryTests(TestCase):
         self.assertEqual(h["value"][0], 0.0 if pd.Timestamp(h["dates"][0]) < pd.Timestamp(d0) else 1000.0)
         self.assertEqual(h["value"][-1], 1000.0)
         self.assertEqual(h["invested"][-1], 1025.0)
+
+
+class ProfileTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("anna", password="pw")
+
+    def test_profile_requires_login(self):
+        self.assertEqual(self.client.get(reverse("profile")).status_code, 302)
+
+    def test_edit_profile(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("profile")).status_code, 200)
+        resp = self.client.post(reverse("profile"), {"first_name": "Anna", "last_name": "A", "email": "a@x.dk"})
+        self.assertRedirects(resp, reverse("profile"))
+        self.user.refresh_from_db()
+        self.assertEqual((self.user.first_name, self.user.email), ("Anna", "a@x.dk"))
+
+    def test_pages_render_with_navbar_and_password_change(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("index")), "navbar")
+        self.assertEqual(self.client.get(reverse("password_change")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("login")).status_code, 302 if False else 200)
