@@ -129,3 +129,7 @@ MAILERS = {
 
 # Hvor længe (sek.) en kurs caches, så vi ikke hammer datakilden
 QUOTE_CACHE_SECONDS = 15
+
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'index'
+LOGOUT_REDIRECT_URL = 'login'

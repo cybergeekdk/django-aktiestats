@@ -4,6 +4,8 @@ from . import views
 
 urlpatterns = [
     path("", views.index, name="index"),
-    path("api/quotes/", views.quotes_api, name="quotes_api"),
     path("api/quote/<str:symbol>/", views.quote_api, name="quote_api"),
+    path("api/search/", views.search_api, name="search_api"),
+    path("api/holdings/", views.holdings_api, name="holdings_api"),
+    path("api/holdings/<int:pk>/", views.holding_detail_api, name="holding_detail_api"),
 ]

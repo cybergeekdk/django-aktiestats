@@ -1,4 +1,6 @@
 """Henter live aktiestatistik fra Yahoo Finance via yfinance."""
+from concurrent.futures import ThreadPoolExecutor
+
 from django.conf import settings
 from django.core.cache import cache
 import yfinance as yf
@@ -62,11 +64,36 @@ def get_quote(symbol: str) -> dict:
 
 
 def get_quotes(symbols: list[str]) -> dict:
-    """Hent flere symboler; fejl pr. symbol returneres i stedet for at fejle alt."""
-    result = {}
-    for symbol in symbols:
+    """Hent flere symboler parallelt; fejl pr. symbol returneres i stedet for at fejle alt."""
+    symbols = [s.strip().upper() for s in symbols if s.strip()]
+
+    def safe(symbol):
         try:
-            result[symbol.strip().upper()] = get_quote(symbol)
+            return get_quote(symbol)
         except QuoteError as exc:
-            result[symbol.strip().upper()] = {"error": str(exc)}
-    return result
+            return {"error": str(exc)}
+
+    if not symbols:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as pool:
+        return dict(zip(symbols, pool.map(safe, symbols)))
+
+
+def search_symbols(query: str, limit: int = 8) -> list[dict]:
+    """Søg aktier/ETF'er på navn eller ticker (fx 'vestas' -> VWS.CO)."""
+    query = query.strip()
+    if len(query) < 2:
+        return []
+    try:
+        hits = yf.Search(query, max_results=limit, news_count=0).quotes
+    except Exception as exc:
+        raise QuoteError("Søgningen fejlede") from exc
+    return [
+        {
+            "symbol": h["symbol"],
+            "name": h.get("longname") or h.get("shortname") or h["symbol"],
+            "exchange": h.get("exchDisp", ""),
+        }
+        for h in hits
+        if h.get("quoteType") in ("EQUITY", "ETF", "INDEX", "MUTUALFUND")
+    ]

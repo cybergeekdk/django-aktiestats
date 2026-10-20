@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Log ind</title>
+<style>body{font-family:system-ui,sans-serif;max-width:360px;margin:4rem auto;padding:0 1rem}p{display:flex;flex-direction:column;gap:.25rem}input{padding:.5rem}button{padding:.5rem 1rem}.err{color:#d1242f}</style></head>
+<body>
+  <h1>Log ind</h1>
+  <form method="post">{% csrf_token %}
+    {% if form.errors %}<p class="err">Forkert brugernavn eller adgangskode.</p>{% endif %}
+    {{ form.as_p }}
+    <button>Log ind</button>
+  </form>
+</body>
+</html>
